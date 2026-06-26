@@ -1,0 +1,71 @@
+{
+  "context": {
+    "date": "2026-06-26T02:11:20+00:00",
+    "host_name": "AcerSwiftGo14",
+    "executable": "./build/bench_engine",
+    "num_cpus": 16,
+    "mhz_per_cpu": 3187,
+    "cpu_scaling_enabled": false,
+    "aslr_enabled": false,
+    "caches": [
+      {
+        "type": "Data",
+        "level": 1,
+        "size": 49152,
+        "num_sharing": 2
+      },
+      {
+        "type": "Instruction",
+        "level": 1,
+        "size": 32768,
+        "num_sharing": 2
+      },
+      {
+        "type": "Unified",
+        "level": 2,
+        "size": 1310720,
+        "num_sharing": 2
+      },
+      {
+        "type": "Unified",
+        "level": 3,
+        "size": 18874368,
+        "num_sharing": 16
+      }
+    ],
+    "load_avg": [0.158691,0.0878906,0.0864258],
+    "library_version": "v1.9.5",
+    "library_build_type": "release",
+    "json_schema_version": 1
+  },
+  "benchmarks": [
+    {
+      "name": "BM_AddLimitOrder/iterations:1000000",
+      "family_index": 0,
+      "per_family_instance_index": 0,
+      "run_name": "BM_AddLimitOrder/iterations:1000000",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 1000000,
+      "real_time": 3.3246258414999829e+04,
+      "cpu_time": 3.3243062556999997e+04,
+      "time_unit": "ns"
+    },
+    {
+      "name": "BM_MarketOrder/iterations:100000",
+      "family_index": 1,
+      "per_family_instance_index": 0,
+      "run_name": "BM_MarketOrder/iterations:100000",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 100000,
+      "real_time": 2.6662819250000211e+04,
+      "cpu_time": 2.6564978460000006e+04,
+      "time_unit": "ns"
+    }
+  ]
+}
