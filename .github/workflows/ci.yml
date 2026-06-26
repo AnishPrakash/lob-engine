@@ -15,7 +15,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libncurses-dev
+          sudo apt-get install -y cmake ninja-build libncurses-dev pkg-config
           
       - name: Setup vcpkg
         run: |
