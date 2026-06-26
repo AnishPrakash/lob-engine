@@ -4,6 +4,10 @@
 #include "memory_pool.hpp"
 #include <functional>
 #include <unordered_map>
+// Add this near the top of include/matching_engine.hpp
+#include <pthread.h> // Ensure this header is included
+
+void pin_to_core(int core_id);
 
 struct Fill {
     uint64_t buy_order_id;

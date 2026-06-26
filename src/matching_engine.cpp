@@ -2,8 +2,15 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
+#include <pthread.h>
 
 MatchingEngine::MatchingEngine(FillCallback cb) : on_fill_(std::move(cb)) {}
+void pin_to_core(int core_id) {
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+}
 
 void MatchingEngine::insert_to_book(uint32_t idx, HalfBook& side) {
     Order& o = pool_.get(idx);

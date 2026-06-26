@@ -7,10 +7,11 @@
 #include <vector>
 #include <algorithm>
 #include <fmt/format.h>
+#include <pthread.h>
 
 static std::atomic<bool> g_quit(false);
 
-// Function to render the LOB state to the ncurses window
+
 void draw_book(const MatchingEngine& eng, const ReplayEngine& replay) {
     clear();
     int row = 1;
@@ -22,7 +23,7 @@ void draw_book(const MatchingEngine& eng, const ReplayEngine& replay) {
     mvprintw(row++, 2, "%10s %10s", "PRICE", "QTY");
     
     // --- ASKS ---
-    attron(COLOR_PAIR(3)); // Red for Asks
+    attron(COLOR_PAIR(3));
     mvprintw(row++, 2, "--- ASKS ---");
     const HalfBook& asks = eng.asks();
     uint32_t ask_pi = asks.best_ask_idx();
@@ -31,8 +32,8 @@ void draw_book(const MatchingEngine& eng, const ReplayEngine& replay) {
     if (ask_pi == NULL_IDX) mvprintw(row++, 4, "(Empty)");
     
     while (ask_pi != NULL_IDX && shown < 10) {
-        // Dividing by 100 to convert cents back to displayable dollar format
         double px = ask_pi / 100.0; 
+        // Reverted to clean data format
         mvprintw(row++, 2, "%10.2f %10lu", px, asks.levels[ask_pi].total_qty);
         
         uint32_t next_pi = NULL_IDX;
@@ -45,7 +46,7 @@ void draw_book(const MatchingEngine& eng, const ReplayEngine& replay) {
     attroff(COLOR_PAIR(3));
     
     // --- BIDS ---
-    attron(COLOR_PAIR(2)); // Green for Bids
+    attron(COLOR_PAIR(2));
     mvprintw(row++, 2, "--- BIDS ---");
     const HalfBook& bids = eng.bids();
     uint32_t bid_pi = bids.best_bid_idx();
@@ -55,6 +56,7 @@ void draw_book(const MatchingEngine& eng, const ReplayEngine& replay) {
 
     while (bid_pi != NULL_IDX && shown < 10) {
         double px = bid_pi / 100.0;
+        // Reverted to clean data format
         mvprintw(row++, 2, "%10.2f %10lu", px, bids.levels[bid_pi].total_qty);
         
         uint32_t next_pi = NULL_IDX;
@@ -67,7 +69,6 @@ void draw_book(const MatchingEngine& eng, const ReplayEngine& replay) {
     attroff(COLOR_PAIR(2));
     refresh();
 }
-
 int main(int argc, char* argv[]) {
     if (argc < 2) { 
         fmt::print("Usage: lob_engine <itch_file>\n"); 
@@ -78,8 +79,11 @@ int main(int argc, char* argv[]) {
     
     // Initialize replay engine
     ReplayEngine replay(engine, 10.0); 
-    std::thread replay_thread([&]() { replay.start(argv[1]); });
-    
+    std::thread replay_thread([&]() { 
+    pin_to_core(0); // Pin this thread to Core 0
+    replay.start(argv[1]); 
+    });
+    setlocale(LC_ALL, "");
     // Ncurses Setup
     initscr(); 
     cbreak(); 
