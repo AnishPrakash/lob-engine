@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/AnishPrakash/lob-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/AnishPrakash/lob-engine/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![asciicast](https://asciinema.org/a/AMoyZSs9i0z2XY8l.svg)](https://asciinema.org/a/AMoyZSs9i0z2XY8l)
 
 ## Performance
 
