@@ -21,7 +21,7 @@ jobs:
         run: |
           git clone https://github.com/microsoft/vcpkg.git
           ./vcpkg/bootstrap-vcpkg.sh
-          ./vcpkg/vcpkg install benchmark fmt spdlog
+          ./vcpkg/vcpkg install
           
       - name: Configure CMake
         run: |
