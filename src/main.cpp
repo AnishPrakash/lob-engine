@@ -14,15 +14,13 @@ void draw_book(const MatchingEngine& eng) {
     clear();
     int row = 1;
     
-    // Header
     attron(A_BOLD | COLOR_PAIR(1));
     mvprintw(0, 0, "LOB ENGINE | Nasdaq ITCH 5.0 | Press 'q' to quit");
     attroff(A_BOLD | COLOR_PAIR(1));
     
     mvprintw(row++, 2, "%10s %10s", "PRICE", "QTY");
     
-    // ASKS (Lowest first)
-    attron(COLOR_PAIR(2)); // green for asks
+    attron(COLOR_PAIR(2));
     mvprintw(row++, 2, "--- ASKS ---");
     
     const HalfBook& asks = eng.asks();
@@ -33,7 +31,6 @@ void draw_book(const MatchingEngine& eng) {
         double px = ask_pi / 10000.0;
         mvprintw(row++, 2, "%10.4f %10lu", px, asks.levels[ask_pi].total_qty);
         
-        // Walk up to next active ask
         uint32_t next_pi = NULL_IDX;
         for (uint32_t p = ask_pi + 1; p < MAX_PRICE_LEVELS; ++p) {
             if (asks.is_active(p)) { next_pi = p; break; }
@@ -43,8 +40,7 @@ void draw_book(const MatchingEngine& eng) {
     }
     attroff(COLOR_PAIR(2));
     
-    // BIDS (Highest first)
-    attron(COLOR_PAIR(3)); // red for bids
+    attron(COLOR_PAIR(3)); 
     mvprintw(row++, 2, "--- BIDS ---");
     
     const HalfBook& bids = eng.bids();
@@ -75,23 +71,19 @@ int main(int argc, char* argv[]) {
     }
     
     MatchingEngine engine([](const Fill& f) {
-        // fills handled silently during replay
     });
     
-    ReplayEngine replay(engine, 10.0); // 10x speed
-    
-    // Start replay in background thread
+    ReplayEngine replay(engine, 10.0); 
     std::thread replay_thread([&]() { replay.start(argv[1]); });
     
-    // Init ncurses
     initscr(); 
     cbreak(); 
     noecho(); 
     curs_set(0);
     start_color();
-    init_pair(1, COLOR_BLACK, COLOR_CYAN); // header
-    init_pair(2, COLOR_GREEN, COLOR_BLACK); // asks
-    init_pair(3, COLOR_RED, COLOR_BLACK); // bids
+    init_pair(1, COLOR_BLACK, COLOR_CYAN); 
+    init_pair(2, COLOR_GREEN, COLOR_BLACK);
+    init_pair(3, COLOR_RED, COLOR_BLACK); 
     nodelay(stdscr, TRUE);
     
     while (!g_quit) {

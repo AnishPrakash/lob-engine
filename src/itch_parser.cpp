@@ -4,14 +4,11 @@
 #include <cstring>
 #include <bit> 
 
-// Network byte order (big-endian) to host (little-endian on x86)
 static inline uint16_t ntoh16(uint16_t v) { return __builtin_bswap16(v); }
 static inline uint32_t ntoh32(uint32_t v) { return __builtin_bswap32(v); }
 static inline uint64_t ntoh64(uint64_t v) { return __builtin_bswap64(v); }
 
 ITCHParser::ITCHParser(MatchingEngine& e) : engine_(e) {}
-
-// Reconstruct 48-bit nanosecond timestamp from 2-byte hi, 4-byte lo.
 uint64_t ITCHParser::decode_timestamp(const uint8_t* hi_ptr, const uint8_t* lo_ptr) {
     uint16_t hi; 
     std::memcpy(&hi, hi_ptr, 2); 
@@ -41,8 +38,6 @@ void ITCHParser::handle_add(const uint8_t* buf) {
 
     engine_.add_order(o);
 }
-
-// Stubs for other message types
 void ITCHParser::handle_delete(const uint8_t* buf) {}
 void ITCHParser::handle_replace(const uint8_t* buf) {}
 void ITCHParser::handle_execute(const uint8_t* buf) {}

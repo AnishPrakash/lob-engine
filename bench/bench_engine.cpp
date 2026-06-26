@@ -2,7 +2,6 @@
 #include "matching_engine.hpp"
 #include <random>
 
-// --- Benchmark: add limit orders at random prices ---
 static void BM_AddLimitOrder(benchmark::State& state) {
     MatchingEngine eng([](const Fill&) {});
     std::mt19937 rng(42);
@@ -26,11 +25,10 @@ static void BM_AddLimitOrder(benchmark::State& state) {
 }
 BENCHMARK(BM_AddLimitOrder)->Iterations(1'000'000);
 
-// --- Benchmark: market order that walks the book ---
 static void BM_MarketOrder(benchmark::State& state) {
     MatchingEngine eng([](const Fill&) {});
     
-    // Pre-populate 10,000 resting sell orders
+    
     for (uint64_t i = 1; i <= 10000; ++i) {
         Order o;
         o.order_id = i;

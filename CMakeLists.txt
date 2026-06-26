@@ -14,7 +14,6 @@ find_package(spdlog REQUIRED)
 
 # Main library (reused by tests & bench)
 add_library(lob_lib STATIC
-    src/order.cpp
     src/order_book.cpp
     src/matching_engine.cpp
     src/itch_parser.cpp

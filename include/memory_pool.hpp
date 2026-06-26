@@ -4,16 +4,15 @@
 #include <stack>
 #include <stdexcept>
 
-// 15 million orders
+
 static constexpr uint32_t POOL_SIZE = 15'000'000;
 
 class OrderPool {
 public:
     OrderPool() {
-        // One-time allocation: 15M orders * 64 bytes = ~960 MB
+        
         pool_.resize(POOL_SIZE);
         
-        // Pre-fill free list in reverse so index 0 is acquired first
         for (uint32_t i = POOL_SIZE; i > 0; --i) {
             free_list_.push(i - 1);
         }
@@ -29,7 +28,7 @@ public:
     }
 
     void release(uint32_t idx) {
-        pool_[idx] = Order(); // zero-init for reuse
+        pool_[idx] = Order(); 
         free_list_.push(idx);
     }
 

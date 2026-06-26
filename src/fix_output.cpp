@@ -2,7 +2,6 @@
 #include <fmt/format.h>
 #include <numeric>
 
-// FIX field delimiter is ASCII SOH (0x01).
 static constexpr char SOH = '\x01';
 
 std::string fill_to_fix42(const Fill& f, uint64_t exec_id) {
@@ -13,18 +12,16 @@ std::string fill_to_fix42(const Fill& f, uint64_t exec_id) {
         SOH, exec_id, f.qty, avg_px, f.timestamp
     );
 
-    // Compute simple checksum (sum of all bytes mod 256)
     uint32_t cksum = 0;
     for (unsigned char c : body) {
         cksum += c;
     }
     
-    // Add header bytes to checksum calculation
     std::string header = fmt::format("8=FIX.4.2{0}9={1}{0}", SOH, body.size());
     for (unsigned char c : header) {
         cksum += c;
     }
     cksum %= 256;
 
-    return fmt::format("{}{}{2}10={3:03d}{0}", SOH, header, body, cksum);
+    return fmt::format("{0}{1}{2}10={3:03d}{0}", SOH, header, body, cksum);
 }

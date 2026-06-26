@@ -1,44 +1,122 @@
-#pragma once
-#include "order.hpp"
-#include "order_book.hpp"
-#include "memory_pool.hpp"
-#include <functional>
-#include <unordered_map>
+#include "matching_engine.hpp"
+#include <algorithm>
 
-struct Fill {
-    uint64_t buy_order_id;
-    uint64_t sell_order_id;
-    int64_t price;
-    uint32_t qty;
-    uint64_t timestamp;
-};
+MatchingEngine::MatchingEngine(FillCallback cb) : on_fill_(std::move(cb)) {}
 
-using FillCallback = std::function<void(const Fill&)>;
+void MatchingEngine::insert_to_book(uint32_t idx, HalfBook& side) {
+    Order& o = pool_.get(idx);
+    uint32_t pi = static_cast<uint32_t>(o.price);
+    PriceLevel& lvl = side.levels[pi];
 
-class MatchingEngine {
-public:
-    explicit MatchingEngine(FillCallback cb);
+    if (lvl.head == NULL_IDX) {
+        lvl.head = lvl.tail = idx;
+        o.next_idx = o.prev_idx = NULL_IDX;
+        side.set_active(pi);
+    } else {
+        pool_.get(lvl.tail).next_idx = idx;
+        o.prev_idx = lvl.tail;
+        o.next_idx = NULL_IDX;
+        lvl.tail = idx;
+    }
+    ++lvl.count;
+    lvl.total_qty += o.qty;
+}
 
-    // Returns number of fills generated.
-    int add_order(Order& o);
-    int cancel_order(uint64_t order_id);
-    int modify_order(uint64_t order_id, uint32_t new_qty);
+void MatchingEngine::remove_from_book(uint32_t idx, HalfBook& side) {
+    Order& o = pool_.get(idx);
+    uint32_t pi = static_cast<uint32_t>(o.price);
+    PriceLevel& lvl = side.levels[pi];
 
-    // Book access (read-only for visualizer)
-    const HalfBook& bids() const { return bids_; }
-    const HalfBook& asks() const { return asks_; }
-    const OrderPool& pool() const { return pool_; }
+    if (o.prev_idx != NULL_IDX) pool_.get(o.prev_idx).next_idx = o.next_idx;
+    else lvl.head = o.next_idx;
 
-private:
-    HalfBook bids_;
-    HalfBook asks_;
-    OrderPool pool_; // defined in Phase 4
-    FillCallback on_fill_;
+    if (o.next_idx != NULL_IDX) pool_.get(o.next_idx).prev_idx = o.prev_idx;
+    else lvl.tail = o.prev_idx;
 
-    // order_id -> pool index fast lookup
-    std::unordered_map<uint64_t, uint32_t> id_to_idx_;
+    lvl.total_qty = (lvl.total_qty > o.qty) ? lvl.total_qty - o.qty : 0;
+    if (--lvl.count == 0) side.clear_active(pi);
+}
 
-    void insert_to_book(uint32_t idx, HalfBook& side);
-    void remove_from_book(uint32_t idx, HalfBook& side);
-    int match_order(Order& incoming, HalfBook& passive_side, bool is_bid_aggressor);
-};
+int MatchingEngine::match_order(Order& inc, HalfBook& passive, bool inc_is_bid) {
+    int fills = 0;
+    while (inc.qty > 0) {
+        uint32_t best_pi = inc_is_bid ? passive.best_ask_idx() : passive.best_bid_idx();
+        if (best_pi == NULL_IDX) break;
+        if (inc.type == OrdType::Limit) {
+            if (inc_is_bid && inc.price < static_cast<int64_t>(best_pi)) break;
+            if (!inc_is_bid && inc.price > static_cast<int64_t>(best_pi)) break;
+        }
+
+        uint32_t pass_idx = passive.levels[best_pi].head;
+        Order& pass = pool_.get(pass_idx);
+
+        if (pass.trader_id != 0 && pass.trader_id == inc.trader_id) {
+            remove_from_book(pass_idx, passive);
+            pass.status = OrdStatus::Cancelled;
+            pool_.release(pass_idx);
+            id_to_idx_.erase(pass.order_id);
+            continue;
+        }
+
+        uint32_t fill_qty = std::min(inc.qty, pass.qty);
+        Fill f;
+        f.buy_order_id = inc_is_bid ? inc.order_id : pass.order_id;
+        f.sell_order_id = inc_is_bid ? pass.order_id : inc.order_id;
+        f.price = pass.price;
+        f.qty = fill_qty;
+        f.timestamp = inc.timestamp;
+        
+        on_fill_(f);
+        ++fills;
+
+        inc.qty -= fill_qty;
+        pass.qty -= fill_qty;
+        passive.levels[best_pi].total_qty -= fill_qty;
+
+        pass.status = (pass.qty == 0) ? OrdStatus::Filled : OrdStatus::PartFill;
+        inc.status = (inc.qty == 0) ? OrdStatus::Filled : OrdStatus::PartFill;
+
+        if (pass.qty == 0) {
+            remove_from_book(pass_idx, passive);
+            pool_.release(pass_idx);
+            id_to_idx_.erase(pass.order_id);
+        }
+    }
+    return fills;
+}
+
+int MatchingEngine::add_order(Order& o) {
+    uint32_t idx = pool_.acquire();
+    pool_.get(idx) = o;
+    id_to_idx_[o.order_id] = idx;
+
+    HalfBook& passive = o.is_buy() ? asks_ : bids_;
+    int fills = match_order(pool_.get(idx), passive, o.is_buy());
+
+    Order& stored = pool_.get(idx);
+    if (stored.qty > 0 && stored.type != OrdType::Market && stored.type != OrdType::IOC && stored.type != OrdType::FOK) {
+        HalfBook& own = o.is_buy() ? bids_ : asks_;
+        insert_to_book(idx, own);
+    } else if (stored.qty > 0) {
+        // Cancel remainder for IOC/FOK/Market
+        stored.status = OrdStatus::Cancelled;
+        pool_.release(idx);
+        id_to_idx_.erase(o.order_id);
+    }
+    return fills;
+}
+
+int MatchingEngine::cancel_order(uint64_t order_id) {
+    auto it = id_to_idx_.find(order_id);
+    if (it == id_to_idx_.end()) return 0;
+
+    uint32_t idx = it->second;
+    Order& o = pool_.get(idx);
+    HalfBook& side = o.is_buy() ? bids_ : asks_;
+    
+    remove_from_book(idx, side);
+    o.status = OrdStatus::Cancelled;
+    pool_.release(idx);
+    id_to_idx_.erase(it);
+    return 1;
+}
