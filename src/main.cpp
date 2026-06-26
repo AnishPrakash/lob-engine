@@ -1,16 +1,34 @@
 #include "matching_engine.hpp"
 #include "replay_engine.hpp"
 #include "fix_output.hpp"
+#include "metrics_manager.hpp"
+#include "metrics_server.cpp"
+#include "metrics.pb.h"
+
+// 1. Order of headers matters for ncurses/gRPC
 #include <ncurses.h>
+#undef OK // Crucial: Undefine the ncurses OK macro so gRPC can use it
+
 #include <thread>
 #include <atomic>
 #include <vector>
 #include <algorithm>
 #include <fmt/format.h>
 #include <pthread.h>
+#include <chrono>
+#include <clocale>
 
 static std::atomic<bool> g_quit(false);
 
+// Function passed to the gRPC thread
+void RunServer(Metrics& metrics) {
+    MetricsServiceImpl service(metrics);
+    grpc::ServerBuilder builder;
+    builder.AddListeningPort("0.0.0.0:50051", grpc::InsecureServerCredentials());
+    builder.RegisterService(&service);
+    std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
+    server->Wait();
+}
 
 void draw_book(const MatchingEngine& eng, const ReplayEngine& replay) {
     clear();
@@ -33,7 +51,6 @@ void draw_book(const MatchingEngine& eng, const ReplayEngine& replay) {
     
     while (ask_pi != NULL_IDX && shown < 10) {
         double px = ask_pi / 100.0; 
-        // Reverted to clean data format
         mvprintw(row++, 2, "%10.2f %10lu", px, asks.levels[ask_pi].total_qty);
         
         uint32_t next_pi = NULL_IDX;
@@ -56,7 +73,6 @@ void draw_book(const MatchingEngine& eng, const ReplayEngine& replay) {
 
     while (bid_pi != NULL_IDX && shown < 10) {
         double px = bid_pi / 100.0;
-        // Reverted to clean data format
         mvprintw(row++, 2, "%10.2f %10lu", px, bids.levels[bid_pi].total_qty);
         
         uint32_t next_pi = NULL_IDX;
@@ -69,22 +85,29 @@ void draw_book(const MatchingEngine& eng, const ReplayEngine& replay) {
     attroff(COLOR_PAIR(2));
     refresh();
 }
+
 int main(int argc, char* argv[]) {
     if (argc < 2) { 
         fmt::print("Usage: lob_engine <itch_file>\n"); 
         return 1; 
     }
-    
-    MatchingEngine engine([](const Fill& f) {});
-    
-    // Initialize replay engine
+
+    // 1. Initialize Metrics and Sidecar
+    Metrics metrics;
+    std::thread grpc_thread(RunServer, std::ref(metrics));
+    grpc_thread.detach(); 
+
+    // 2. Initialize Engine and Replay
+    MatchingEngine engine([](const Fill& f) {}, &metrics);
     ReplayEngine replay(engine, 10.0); 
+
     std::thread replay_thread([&]() { 
-    pin_to_core(0); // Pin this thread to Core 0
-    replay.start(argv[1]); 
+        pin_to_core(0);
+        replay.start(argv[1]); 
     });
+
+    // 3. Ncurses Setup
     setlocale(LC_ALL, "");
-    // Ncurses Setup
     initscr(); 
     cbreak(); 
     noecho(); 
@@ -95,13 +118,13 @@ int main(int argc, char* argv[]) {
     init_pair(3, COLOR_RED, COLOR_BLACK); 
     nodelay(stdscr, TRUE);
     
+    // 4. Main loop
     while (!g_quit) {
         int ch = getch();
         if (ch == 'q' || ch == 'Q') { 
             g_quit = true; 
             replay.stop(); 
         }
-        // Update the display with current engine and replay state
         draw_book(engine, replay);
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }

@@ -6,7 +6,7 @@
 static MatchingEngine make_engine(std::vector<Fill>& fills) {
     return MatchingEngine([&fills](const Fill& f) {
         fills.push_back(f);
-    });
+    }, nullptr);
 }
 
 void test_simple_cross() {

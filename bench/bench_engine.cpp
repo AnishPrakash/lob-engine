@@ -3,7 +3,7 @@
 #include <random>
 
 static void BM_AddLimitOrder(benchmark::State& state) {
-    MatchingEngine eng([](const Fill&) {});
+    MatchingEngine eng([](const Fill&) {}, nullptr);
     std::mt19937 rng(42);
     std::uniform_int_distribution<int64_t> price_dist(100'0000, 200'0000);
     std::uniform_int_distribution<uint32_t> qty_dist(1, 1000);
@@ -26,7 +26,7 @@ static void BM_AddLimitOrder(benchmark::State& state) {
 BENCHMARK(BM_AddLimitOrder)->Iterations(1'000'000);
 
 static void BM_MarketOrder(benchmark::State& state) {
-    MatchingEngine eng([](const Fill&) {});
+    MatchingEngine eng([](const Fill&) {}, nullptr);
     
     
     for (uint64_t i = 1; i <= 10000; ++i) {

@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package lob.metrics;
+
+service MetricsService {
+  rpc GetMarketStats (EmptyRequest) returns (MarketStats);
+}
+
+message EmptyRequest {}
+
+message MarketStats {
+  double bid_vwap = 1;
+  double ask_vwap = 2;
+  uint64 active_orders = 3;
+  double p99_latency_ms = 4;
+}

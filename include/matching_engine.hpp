@@ -2,11 +2,11 @@
 #include "order.hpp"
 #include "order_book.hpp"
 #include "memory_pool.hpp"
+#include "metrics_manager.hpp"
 #include <functional>
 #include <unordered_map>
-// Add this near the top of include/matching_engine.hpp
-#include <pthread.h> // Ensure this header is included
 
+// Forward declaration for hardware optimization
 void pin_to_core(int core_id);
 
 struct Fill {
@@ -21,11 +21,14 @@ using FillCallback = std::function<void(const Fill&)>;
 
 class MatchingEngine {
 public:
-    explicit MatchingEngine(FillCallback cb);
+    explicit MatchingEngine(FillCallback cb, Metrics* m);
 
     int add_order(Order& o);
     int cancel_order(uint64_t order_id);
     int modify_order(uint64_t order_id, uint32_t new_qty);
+
+    // Hardware-accelerated metric calculation
+    double calculate_vwap_simd(const HalfBook& side);
 
     const HalfBook& bids() const { return bids_; }
     const HalfBook& asks() const { return asks_; }
@@ -36,9 +39,9 @@ private:
     HalfBook bids_;
     HalfBook asks_;
     OrderPool pool_; 
+    Metrics* metrics_;
     FillCallback on_fill_;
 
-   
     std::unordered_map<uint64_t, uint32_t> id_to_idx_;
 
     void insert_to_book(uint32_t idx, HalfBook& side);
