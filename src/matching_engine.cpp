@@ -1,0 +1,44 @@
+#pragma once
+#include "order.hpp"
+#include "order_book.hpp"
+#include "memory_pool.hpp"
+#include <functional>
+#include <unordered_map>
+
+struct Fill {
+    uint64_t buy_order_id;
+    uint64_t sell_order_id;
+    int64_t price;
+    uint32_t qty;
+    uint64_t timestamp;
+};
+
+using FillCallback = std::function<void(const Fill&)>;
+
+class MatchingEngine {
+public:
+    explicit MatchingEngine(FillCallback cb);
+
+    // Returns number of fills generated.
+    int add_order(Order& o);
+    int cancel_order(uint64_t order_id);
+    int modify_order(uint64_t order_id, uint32_t new_qty);
+
+    // Book access (read-only for visualizer)
+    const HalfBook& bids() const { return bids_; }
+    const HalfBook& asks() const { return asks_; }
+    const OrderPool& pool() const { return pool_; }
+
+private:
+    HalfBook bids_;
+    HalfBook asks_;
+    OrderPool pool_; // defined in Phase 4
+    FillCallback on_fill_;
+
+    // order_id -> pool index fast lookup
+    std::unordered_map<uint64_t, uint32_t> id_to_idx_;
+
+    void insert_to_book(uint32_t idx, HalfBook& side);
+    void remove_from_book(uint32_t idx, HalfBook& side);
+    int match_order(Order& incoming, HalfBook& passive_side, bool is_bid_aggressor);
+};
