@@ -1,43 +1,49 @@
 #include "itch_parser.hpp"
+#include <iostream>
 #include <fstream>
 #include <stdexcept>
 #include <cstring>
-#include <bit> 
 
 static inline uint16_t ntoh16(uint16_t v) { return __builtin_bswap16(v); }
 static inline uint32_t ntoh32(uint32_t v) { return __builtin_bswap32(v); }
 static inline uint64_t ntoh64(uint64_t v) { return __builtin_bswap64(v); }
 
 ITCHParser::ITCHParser(MatchingEngine& e) : engine_(e) {}
-uint64_t ITCHParser::decode_timestamp(const uint8_t* hi_ptr, const uint8_t* lo_ptr) {
-    uint16_t hi; 
-    std::memcpy(&hi, hi_ptr, 2); 
-    hi = ntoh16(hi);
-    
-    uint32_t lo; 
-    std::memcpy(&lo, lo_ptr, 4); 
-    lo = ntoh32(lo);
-    
-    return (static_cast<uint64_t>(hi) << 32) | lo;
-}
 
 void ITCHParser::handle_add(const uint8_t* buf) {
-    ITCHAddOrder msg;
-    std::memcpy(&msg, buf, sizeof(msg));
-
     Order o;
-    o.order_id = ntoh64(msg.order_ref);
-    o.timestamp = decode_timestamp(msg.timestamp_hi, reinterpret_cast<const uint8_t*>(&msg.timestamp_lo));
-    o.price = static_cast<int64_t>(ntoh32(msg.price));
-    o.qty = ntoh32(msg.shares);
+    
+    uint64_t order_ref;
+    std::memcpy(&order_ref, buf + 11, 8);
+    o.order_id = ntoh64(order_ref);
+
+    uint16_t ts_hi;
+    std::memcpy(&ts_hi, buf + 5, 2);
+    uint32_t ts_lo;
+    std::memcpy(&ts_lo, buf + 7, 4);
+    o.timestamp = (static_cast<uint64_t>(ntoh16(ts_hi)) << 32) | ntoh32(ts_lo);
+
+    o.side = (buf[19] == 'B') ? Side::Buy : Side::Sell;
+
+    uint32_t shares;
+    std::memcpy(&shares, buf + 20, 4);
+    o.qty = ntoh32(shares);
     o.orig_qty = o.qty;
-    o.side = (msg.buy_sell == 'B') ? Side::Buy : Side::Sell;
+
+    std::memcpy(o.symbol, buf + 24, 8);
+
+    uint32_t price;
+    std::memcpy(&price, buf + 32, 4);
+    o.price = static_cast<int64_t>(ntoh32(price)) / 100;
+
     o.type = OrdType::Limit;
     o.status = OrdStatus::New;
-    std::memcpy(o.symbol, msg.stock, 8);
 
     engine_.add_order(o);
+    static std::ofstream log("debug.log", std::ios::app);
+    log << "Added order: " << o.order_id << " Price: " << o.price << std::endl;
 }
+
 void ITCHParser::handle_delete(const uint8_t* buf) {}
 void ITCHParser::handle_replace(const uint8_t* buf) {}
 void ITCHParser::handle_execute(const uint8_t* buf) {}
@@ -57,11 +63,9 @@ uint64_t ITCHParser::parse_file(std::string_view path) {
         f.read(reinterpret_cast<char*>(msg_buf), len);
         if (!f) break;
 
-        switch (static_cast<ITCHMsgType>(msg_buf[0])) {
-            case ITCHMsgType::AddOrder: handle_add(msg_buf); break;
-            case ITCHMsgType::DeleteOrder: handle_delete(msg_buf); break;
-            case ITCHMsgType::ExecuteOrder: handle_execute(msg_buf); break;
-            default: break;
+        switch (msg_buf[0]) {
+            case 'A': handle_add(msg_buf); break;
+            default: break; 
         }
         ++count;
     }

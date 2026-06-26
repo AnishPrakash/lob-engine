@@ -1,46 +1,47 @@
 #include "order_book.hpp"
-#include <bit>
-#include <cstdlib>
-#include <stdexcept>
+#include <cstring>
 
 HalfBook::HalfBook() {
-    levels = static_cast<PriceLevel*>(std::calloc(MAX_PRICE_LEVELS, sizeof(PriceLevel)));
-    if (!levels) throw std::runtime_error("OOM: HalfBook");
+    // 1. Allocate the memory that was previously a nullptr
+    levels = new PriceLevel[MAX_PRICE_LEVELS];
+    std::memset(bitset, 0, sizeof(bitset));
 }
 
-HalfBook::~HalfBook() { 
-    std::free(levels); 
+HalfBook::~HalfBook() {
+    delete[] levels;
 }
 
-void HalfBook::set_active(uint32_t idx) {
-    bitset[idx / 64] |= (1ULL << (idx % 64));
+void HalfBook::set_active(uint32_t price_idx) {
+    bitset[price_idx >> 6] |= (1ULL << (price_idx & 63));
 }
 
-void HalfBook::clear_active(uint32_t idx) {
-    bitset[idx / 64] &= ~(1ULL << (idx % 64));
+void HalfBook::clear_active(uint32_t price_idx) {
+    bitset[price_idx >> 6] &= ~(1ULL << (price_idx & 63));
 }
 
-bool HalfBook::is_active(uint32_t idx) const {
-    return (bitset[idx / 64] >> (idx % 64)) & 1ULL;
+bool HalfBook::is_active(uint32_t price_idx) const {
+    return (bitset[price_idx >> 6] & (1ULL << (price_idx & 63))) != 0;
 }
 
-uint32_t HalfBook::best_bid_idx() const {
-    int top = static_cast<int>(MAX_PRICE_LEVELS / 64);
-    for (int w = top; w >= 0; --w) {
-        if (bitset[w]) {
-            int bit = 63 - __builtin_clzll(bitset[w]);
-            return static_cast<uint32_t>(w * 64 + bit);
+uint32_t HalfBook::best_ask_idx() const {
+    // Search upwards from price 0
+    for (size_t i = 0; i < (MAX_PRICE_LEVELS / 64 + 1); ++i) {
+        if (bitset[i] > 0) {
+            uint64_t b = bitset[i];
+            uint32_t bit = __builtin_ctzll(b); // Find first set bit (fast)
+            return (i << 6) + bit;
         }
     }
     return NULL_IDX;
 }
 
-uint32_t HalfBook::best_ask_idx() const {
-    uint32_t words = MAX_PRICE_LEVELS / 64 + 1;
-    for (uint32_t w = 0; w < words; ++w) {
-        if (bitset[w]) {
-            int bit = __builtin_ctzll(bitset[w]);
-            return static_cast<uint32_t>(w * 64 + bit);
+uint32_t HalfBook::best_bid_idx() const {
+    // Search downwards from max price
+    for (int i = (MAX_PRICE_LEVELS / 64); i >= 0; --i) {
+        if (bitset[i] > 0) {
+            uint64_t b = bitset[i];
+            uint32_t bit = 63 - __builtin_clzll(b); // Find last set bit (fast)
+            return (i << 6) + bit;
         }
     }
     return NULL_IDX;

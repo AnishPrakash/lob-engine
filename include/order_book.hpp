@@ -4,7 +4,6 @@
 #include <array>
 
 static constexpr uint32_t MAX_PRICE_LEVELS = 10000000;
-static constexpr uint32_t NULL_IDX = UINT32_MAX;
 
 struct PriceLevel {
     uint32_t head = NULL_IDX;

@@ -1,10 +1,14 @@
 #include "matching_engine.hpp"
 #include <algorithm>
+#include <iostream>
+#include <fstream>
 
 MatchingEngine::MatchingEngine(FillCallback cb) : on_fill_(std::move(cb)) {}
 
 void MatchingEngine::insert_to_book(uint32_t idx, HalfBook& side) {
     Order& o = pool_.get(idx);
+    static std::ofstream debug("price_debug.log", std::ios::app);
+    debug << "Inserting Price: " << o.price << " | PI: " << (uint32_t)o.price << std::endl;
     uint32_t pi = static_cast<uint32_t>(o.price);
     PriceLevel& lvl = side.levels[pi];
 

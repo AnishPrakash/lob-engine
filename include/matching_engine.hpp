@@ -26,6 +26,7 @@ public:
     const HalfBook& bids() const { return bids_; }
     const HalfBook& asks() const { return asks_; }
     const OrderPool& pool() const { return pool_; }
+    uint32_t active_orders() const { return pool_.in_use(); }
 
 private:
     HalfBook bids_;
